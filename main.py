@@ -141,6 +141,7 @@ class TradingBot:
         self.security = SecurityAnalyzer()
         self.tg_bot = Application.builder().token(self.config['telegram']['bot_token']).build()
         self._register_handlers()
+        self.positions = {}  # Track active positions
         
     def _register_handlers(self):
         """Set up Telegram command handlers"""
@@ -149,34 +150,42 @@ class TradingBot:
         self.tg_bot.add_handler(CommandHandler("positions", self._cmd_positions))
         self.tg_bot.add_handler(CommandHandler("stop_loss", self._cmd_stop_loss))
 
-    async def _cmd_start(self, update: Update, context) -> None:
-        """Handle /start command"""
-        await update.message.reply_text(
-            "🚀 Solana Trading Bot Active\n"
-            "Available commands:\n"
-            "/watch [address] - Add token to watchlist\n"
-            "/positions - Show current positions\n"
-            "/stop_loss [%] - Set stop loss percentage"
-        )
-
-    async def _cmd_watch(self, update: Update, context) -> None:
-        """Handle /watch command"""
-        if len(context.args) != 1:
-            await update.message.reply_text("Usage: /watch [token_address]")
+    # Add missing handler methods
+    async def _cmd_positions(self, update: Update, context) -> None:
+        """Handle /positions command"""
+        if not self.positions:
+            await update.message.reply_text("No active positions")
             return
             
-        pair_address = context.args[0]
-        if await self.security.is_token_safe(pair_address):
-            self.config['watchlist'].append(pair_address)
-            await update.message.reply_text(f"✅ Added {pair_address} to watchlist")
-        else:
-            await update.message.reply_text("❌ Token failed security checks")
+        position_list = "\n".join(
+            [f"{token}: {details['amount']} @ ${details['entry_price']}" 
+             for token, details in self.positions.items()]
+        )
+        await update.message.reply_text(
+            f"📊 Active Positions:\n{position_list}"
+        )
+
+    async def _cmd_stop_loss(self, update: Update, context) -> None:
+        """Handle /stop_loss command"""
+        if len(context.args) != 1:
+            await update.message.reply_text("Usage: /stop_loss [percentage]")
+            return
+            
+        try:
+            new_sl = float(context.args[0])
+            if not -100 < new_sl < 0:
+                raise ValueError
+            self.config['trading']['stop_loss'] = new_sl
+            await update.message.reply_text(f"✅ Stop loss updated to {new_sl}%")
+        except (ValueError, TypeError):
+            await update.message.reply_text("❌ Invalid stop loss percentage")
 
     async def monitor_markets(self):
         """Main monitoring loop"""
+        logger.info("Starting market monitoring")
         while True:
             try:
-                # Add actual market monitoring logic here
+                # Add your market monitoring logic here
                 await asyncio.sleep(self.config['polling_interval'])
             except Exception as e:
                 logger.error(f"Monitoring error: {str(e)}")
@@ -184,10 +193,16 @@ class TradingBot:
 
 async def main():
     """Initialize and start the bot"""
-    bot = TradingBot()
-    await bot.tg_bot.initialize()
-    await bot.tg_bot.start()
-    await bot.monitor_markets()
+    try:
+        bot = TradingBot()
+        await bot.tg_bot.initialize()
+        await bot.tg_bot.start()
+        await bot.monitor_markets()
+    except Exception as e:
+        logger.critical(f"Fatal error: {str(e)}")
+    finally:
+        if 'tg_bot' in locals():
+            await bot.tg_bot.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())
