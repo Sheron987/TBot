@@ -140,17 +140,61 @@ class TradingBot:
             self.config = yaml.safe_load(f)
         self.security = SecurityAnalyzer()
         self.tg_bot = Application.builder().token(self.config['telegram']['bot_token']).build()
+        self.positions = {}
+        self.watchlist = set()
         self._register_handlers()
-        self.positions = {}  # Track active positions
         
     def _register_handlers(self):
         """Set up Telegram command handlers"""
-        self.tg_bot.add_handler(CommandHandler("start", self._cmd_start))
-        self.tg_bot.add_handler(CommandHandler("watch", self._cmd_watch))
-        self.tg_bot.add_handler(CommandHandler("positions", self._cmd_positions))
-        self.tg_bot.add_handler(CommandHandler("stop_loss", self._cmd_stop_loss))
+        handlers = [
+            CommandHandler("start", self._cmd_start),
+            CommandHandler("watch", self._cmd_watch),
+            CommandHandler("unwatch", self._cmd_unwatch),
+            CommandHandler("positions", self._cmd_positions),
+            CommandHandler("stop_loss", self._cmd_stop_loss),
+            CommandHandler("take_profit", self._cmd_take_profit),
+        ]
+        for handler in handlers:
+            self.tg_bot.add_handler(handler)
 
-    # Add missing handler methods
+    async def _cmd_start(self, update: Update, context) -> None:
+        """Handle /start command"""
+        await update.message.reply_text(
+            "🚀 Solana Trading Bot Active\n\n"
+            "Available commands:\n"
+            "/watch [address] - Add token to watchlist\n"
+            "/unwatch [address] - Remove from watchlist\n"
+            "/positions - Show current positions\n"
+            "/stop_loss [%] - Set stop loss percentage\n"
+            "/take_profit [%] - Set take profit percentage"
+        )
+
+    async def _cmd_watch(self, update: Update, context) -> None:
+        """Handle /watch command"""
+        if len(context.args) != 1:
+            await update.message.reply_text("Usage: /watch [token_address]")
+            return
+            
+        pair_address = context.args[0]
+        if await self.security.is_token_safe(pair_address):
+            self.watchlist.add(pair_address)
+            await update.message.reply_text(f"✅ Added {pair_address} to watchlist")
+        else:
+            await update.message.reply_text("❌ Token failed security checks")
+
+    async def _cmd_unwatch(self, update: Update, context) -> None:
+        """Handle /unwatch command"""
+        if len(context.args) != 1:
+            await update.message.reply_text("Usage: /unwatch [token_address]")
+            return
+            
+        pair_address = context.args[0]
+        if pair_address in self.watchlist:
+            self.watchlist.remove(pair_address)
+            await update.message.reply_text(f"✅ Removed {pair_address} from watchlist")
+        else:
+            await update.message.reply_text("❌ Token not in watchlist")
+
     async def _cmd_positions(self, update: Update, context) -> None:
         """Handle /positions command"""
         if not self.positions:
@@ -180,13 +224,29 @@ class TradingBot:
         except (ValueError, TypeError):
             await update.message.reply_text("❌ Invalid stop loss percentage")
 
+    async def _cmd_take_profit(self, update: Update, context) -> None:
+        """Handle /take_profit command"""
+        if len(context.args) != 1:
+            await update.message.reply_text("Usage: /take_profit [percentage]")
+            return
+            
+        try:
+            new_tp = float(context.args[0])
+            if not 0 < new_tp < 1000:
+                raise ValueError
+            self.config['trading']['take_profit'] = new_tp
+            await update.message.reply_text(f"✅ Take profit updated to {new_tp}%")
+        except (ValueError, TypeError):
+            await update.message.reply_text("❌ Invalid take profit percentage")
+
     async def monitor_markets(self):
         """Main monitoring loop"""
         logger.info("Starting market monitoring")
         while True:
             try:
-                # Add your market monitoring logic here
-                await asyncio.sleep(self.config['polling_interval'])
+                # Implement your market monitoring logic here
+                logger.debug(f"Monitoring {len(self.watchlist)} tokens")
+                await asyncio.sleep(self.config['trading']['polling_interval'])
             except Exception as e:
                 logger.error(f"Monitoring error: {str(e)}")
                 await asyncio.sleep(60)
