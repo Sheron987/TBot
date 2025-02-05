@@ -1,0 +1,11 @@
+tokens:
+  - "3j9...WaY"   # Example malicious token address
+  - "8qT...kLp"
+
+developers:
+  - "H1b...m8x"   # Known malicious developer
+  - "qW3...Z9t"
+
+malicious_patterns:
+  - "same_deployer:*"  # Pattern matching
+  - "clone_contract:Serum"

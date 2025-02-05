@@ -1,0 +1,22 @@
+security:
+  max_risk_score: 40         # 0-100 (lower is safer)
+  min_liquidity_lock: 0.75   # 75%+ locked liquidity
+  min_distribution_score: 0.7 # Holder distribution quality
+
+trading:
+  max_position_size: 0.05    # 5% of portfolio per trade
+  stop_loss: -15             # 15% trailing stop loss
+  take_profit: 25            # 25% profit target
+  max_liquidity_usage: 0.1   # Use max 10% of pool liquidity
+  polling_interval: 60       # Seconds between market checks
+
+filters:
+  min_liquidity: 25000       # $25k minimum liquidity
+  max_volume_ratio: 2        # Max 2x volume/liquidity ratio
+  buy_sell_ratio: 1.5        # 1.5:1 buy/sell ratio minimum
+
+telegram:
+  bot_token: "TG_BOT_TOKEN"
+  chat_id: "TG_CHAT_ID"
+
+watchlist: []
