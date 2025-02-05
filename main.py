@@ -136,6 +136,7 @@ class TradingBot:
     """Main trading bot class with Telegram integration"""
     
     def __init__(self):
+        logger.info("Initializing TradingBot")
         with open(CONFIG_PATH) as f:
             self.config = yaml.safe_load(f)
         self.security = SecurityAnalyzer()
@@ -255,14 +256,26 @@ async def main():
     """Initialize and start the bot"""
     try:
         bot = TradingBot()
+        
+        # Démarrer le polling Telegram en arrière-plan
         await bot.tg_bot.initialize()
         await bot.tg_bot.start()
-        await bot.monitor_markets()
+        
+        # Démarrer la surveillance des marchés dans une tâche séparée
+        monitoring_task = asyncio.create_task(bot.monitor_markets())
+        
+        # Démarrer le polling des mises à jour Telegram
+        await bot.tg_bot.updater.start_polling()
+        
+        # Maintenir le bot actif
+        while True:
+            await asyncio.sleep(3600)
+            
     except Exception as e:
         logger.critical(f"Fatal error: {str(e)}")
     finally:
-        if 'tg_bot' in locals():
-            await bot.tg_bot.stop()
+        await bot.tg_bot.updater.stop()
+        await bot.tg_bot.stop()
 
 if __name__ == "__main__":
     asyncio.run(main())
